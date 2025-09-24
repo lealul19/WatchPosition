@@ -15,19 +15,17 @@
     let within = false;
     let errorMsg = '';
   
-    // NEW: Kompass/Orientierung
-    let hasOrientation = typeof window !== 'undefined' && 'DeviceOrientationEvent' in window; // NEW
-    let heading = null;          // NEW: Kompasskurs (0=N, 90=E, …)
-    let relBearing = null;       // NEW: Drehwinkel von Blickrichtung bis zum Ziel (0..360)
-    let orientationEnabled = false; // NEW
+    let hasOrientation = typeof window !== 'undefined' && 'DeviceOrientationEvent' in window; 
+    let heading = null;        
+    let relBearing = null;      
+    let orientationEnabled = false; 
   
     function toFixedOrDash(value, digits = 1) {
       return (value === null || value === undefined) ? '—' : value.toFixed(digits);
     }
   
-    // NEW: Hilfen
-    const clamp360 = (x) => ((x % 360) + 360) % 360; // NEW
-    const sectorText = (deg) => {                    // NEW
+    const clamp360 = (x) => ((x % 360) + 360) % 360; 
+    const sectorText = (deg) => {                    
       const dirs = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
       const idx = Math.round(clamp360(deg) / 22.5) % 16;
       return dirs[idx];
@@ -69,8 +67,7 @@
               THRESHOLD_METERS
             );
   
-            // NEW: relative Richtung aktualisieren
-            updateRelBearing(); // NEW
+            updateRelBearing(); 
           },
           (err) => {
             errorMsg = `Geolocation-Fehler (${err.code}): ${err.message}`;
@@ -95,14 +92,11 @@
       }
     }
   
-    // NEW: DeviceOrientation -> Heading
-    function onOrientation(event) { // NEW
-      // iOS liefert oft webkitCompassHeading (0=N, CW)
+    function onOrientation(event) { 
       const wk = event.webkitCompassHeading;
       if (typeof wk === 'number' && !Number.isNaN(wk)) {
         heading = clamp360(wk);
       } else {
-        // fallback: alpha (0..360). Viele Browser: 0=N
         if (typeof event.alpha === 'number') {
           heading = clamp360(event.alpha);
         }
@@ -110,15 +104,14 @@
       updateRelBearing();
     }
   
-    function updateRelBearing() { // NEW
+    function updateRelBearing() { 
       if (bearing == null || heading == null) { relBearing = null; return; }
-      relBearing = clamp360(bearing - heading); // wie weit (rechtsrum) bis zum Ziel
+      relBearing = clamp360(bearing - heading);
     }
   
-    async function enableCompass() { // NEW
+    async function enableCompass() { 
       if (!hasOrientation) { errorMsg = 'Dieses Gerät/Browser unterstützt keine Geräteausrichtung.'; return; }
       try {
-        // iOS 13+ braucht explizite Erlaubnis
         if (typeof DeviceOrientationEvent !== 'undefined' &&
             typeof DeviceOrientationEvent.requestPermission === 'function') {
           const perm = await DeviceOrientationEvent.requestPermission();
@@ -131,15 +124,58 @@
       }
     }
   
-    function disableCompass() { // NEW
+    function disableCompass() { 
       window.removeEventListener('deviceorientation', onOrientation, true);
       orientationEnabled = false;
     }
   
+    /* ===================== BATTERY (ADD) ===================== */
+    // Hinweis: iOS Safari unterstützt navigator.getBattery() nicht.
+    let batterySupported = typeof navigator !== 'undefined' && 'getBattery' in navigator;
+    let batteryLevel = null;   // 0..1
+    let batteryCharging = null;
+  
+    function batteryPercent() {
+      return batteryLevel == null ? null : Math.round(batteryLevel * 100);
+    }
+    function batteryClass() {
+      if (batteryLevel == null) return '';
+      return batteryLevel > 0.5 ? 'battery-green' : 'battery-red';
+    }
+  
+    async function initBattery() {
+      if (!batterySupported) return;
+      try {
+        const batt = await navigator.getBattery();
+        const set = () => {
+          batteryLevel = batt.level;
+          batteryCharging = batt.charging;
+        };
+        set();
+        batt.addEventListener('levelchange', set);
+        batt.addEventListener('chargingchange', set);
+        return () => {
+          batt.removeEventListener('levelchange', set);
+          batt.removeEventListener('chargingchange', set);
+        };
+      } catch {
+        batterySupported = false;
+      }
+    }
+    /* ========================================================= */
+  
     onMount(() => {
       if (hasGeo) startWatching();
-      // Kompass bewusst erst per Button aktivieren (Permissions) // NEW
-      return () => { stopWatching(); disableCompass(); }; // NEW
+      // Battery init (ADD)
+      let cleanupBattery;
+      initBattery()?.then((c) => { cleanupBattery = c; });
+  
+      return () => { 
+        stopWatching(); 
+        disableCompass();
+        // Battery cleanup (ADD)
+        if (cleanupBattery) cleanupBattery();
+      };
     });
   </script>
   
@@ -165,18 +201,17 @@
     }
   
     .circle {
-      position: relative; /* NEW: für Pfeil-Overlay */
+      position: relative; 
       width: min(60vmin, 420px);
       height: min(60vmin, 420px);
       border-radius: 9999px;
       transition: background-color 200ms ease, box-shadow 200ms ease, transform 120ms ease;
       box-shadow: 0 20px 60px rgba(0,0,0,0.08), inset 0 0 0 8px rgba(0,0,0,0.04);
-      overflow: hidden; /* NEW */
+      overflow: hidden; 
     }
     .circle.red { background: #e53935; }
     .circle.green { background: #43a047; }
   
-    /* NEW: Pfeil, der zum Ziel zeigt (relativ zur Blickrichtung) */
     .arrow {
       position: absolute;
       left: 50%; top: 50%;
@@ -189,7 +224,6 @@
       filter: drop-shadow(0 4px 10px rgba(0,0,0,.25));
     }
   
-    /* NEW: kleine Mittelpunktsmarke */
     .dot {
       position: absolute;
       left: 50%; top: 50%;
@@ -214,7 +248,7 @@
       margin-top: 1rem;
       display: flex;
       gap: .5rem;
-      flex-wrap: wrap; /* NEW */
+      flex-wrap: wrap; 
     }
   
     button {
@@ -229,6 +263,22 @@
   
     .hint { font-size: .9rem; color: #666; margin-top: .5rem; }
     .err { color: #b00020; margin-top: .5rem; }
+  
+    /* ===== Battery Badge Styles (ADD) ===== */
+    .battery-pill {
+      padding: .15rem .5rem;
+      border-radius: 9999px;
+      background: #f5f5f5;
+      font-weight: 600;
+    }
+    .battery-green {
+      background: #e8f5e9;
+      color: #1b5e20;
+    }
+    .battery-red {
+      background: #fdecea;
+      color: #b71c1c;
+    }
   </style>
   
   <div class="wrap">
@@ -237,7 +287,6 @@
         class="circle {within ? 'green' : 'red'}"
         aria-label={within ? 'Grüner Punkt' : 'Roter Punkt'}
       >
-        <!-- NEW: Pfeil zeigt Richtung zum Ziel relativ zur aktuellen Blickrichtung -->
         <div class="arrow" style="--rot: {relBearing ?? 0}deg;"></div>
         <div class="dot"></div>
       </div>
@@ -258,7 +307,6 @@
           </div>
         </div>
   
-        <!-- NEW: Kompass & relative Richtung -->
         <div class="row">
           <div class="label">Kompasskurs (Heading)</div>
           <div class="value">
@@ -290,19 +338,32 @@
             {TARGET.latitude}, {TARGET.longitude}
           </div>
         </div>
+  
+        <!-- BATTERIE (ADD) -->
+        <div class="row">
+          <div class="label">Batterie</div>
+          <div class="value">
+            {#if batterySupported}
+              <span class="battery-pill {batteryClass()}">
+                {batteryPercent() === null ? '—' : `${batteryPercent()}%`}{batteryCharging ? ' (Lädt)' : ''}
+              </span>
+            {:else}
+              <span class="battery-pill">Nicht unterstützt</span>
+            {/if}
+          </div>
+        </div>
       </div>
   
       <div class="controls">
         <button on:click={startWatching} disabled={!hasGeo || watching}>Start (watchPosition)</button>
         <button on:click={stopWatching} disabled={!watching}>Stop</button>
-  
-        <!-- NEW: separater Button wegen iOS-Permission -->
         <button on:click={enableCompass} disabled={orientationEnabled}>Kompass aktivieren</button>
       </div>
   
       <div class="hint">
         Erlaube Standort & Bewegung/Orientierung (iOS: „Bewegung & Ausrichtung“). Richte das Handy waagerecht aus.
-        Der Pfeil zeigt an, in welche Richtung du dich drehen musst, um zum Ziel zu blicken.
+        Der Pfeil zeigt an, in welche Richtung du dich drehen musst, um zum Ziel zu blicken. 
+        Hinweis: iOS Safari zeigt den Batteriestand normalerweise nicht über <code>navigator.getBattery()</code>.
       </div>
       {#if !hasGeo}
         <div class="err">Geolocation wird von diesem Gerät/Browser nicht unterstützt.</div>
