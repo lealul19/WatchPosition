@@ -16,16 +16,16 @@
     let errorMsg = '';
   
     let hasOrientation = typeof window !== 'undefined' && 'DeviceOrientationEvent' in window; 
-    let heading = null;        
-    let relBearing = null;      
-    let orientationEnabled = false; 
+    let heading = null;
+    let relBearing = null;
+    let orientationEnabled = false;
   
     function toFixedOrDash(value, digits = 1) {
       return (value === null || value === undefined) ? '—' : value.toFixed(digits);
     }
   
-    const clamp360 = (x) => ((x % 360) + 360) % 360; 
-    const sectorText = (deg) => {                    
+    const clamp360 = (x) => ((x % 360) + 360) % 360;
+    const sectorText = (deg) => {
       const dirs = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
       const idx = Math.round(clamp360(deg) / 22.5) % 16;
       return dirs[idx];
@@ -67,7 +67,7 @@
               THRESHOLD_METERS
             );
   
-            updateRelBearing(); 
+            updateRelBearing();
           },
           (err) => {
             errorMsg = `Geolocation-Fehler (${err.code}): ${err.message}`;
@@ -92,7 +92,7 @@
       }
     }
   
-    function onOrientation(event) { 
+    function onOrientation(event) {
       const wk = event.webkitCompassHeading;
       if (typeof wk === 'number' && !Number.isNaN(wk)) {
         heading = clamp360(wk);
@@ -104,12 +104,12 @@
       updateRelBearing();
     }
   
-    function updateRelBearing() { 
+    function updateRelBearing() {
       if (bearing == null || heading == null) { relBearing = null; return; }
       relBearing = clamp360(bearing - heading);
     }
   
-    async function enableCompass() { 
+    async function enableCompass() {
       if (!hasOrientation) { errorMsg = 'Dieses Gerät/Browser unterstützt keine Geräteausrichtung.'; return; }
       try {
         if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -124,33 +124,24 @@
       }
     }
   
-    function disableCompass() { 
+    function disableCompass() {
       window.removeEventListener('deviceorientation', onOrientation, true);
       orientationEnabled = false;
     }
   
-    /* ===================== BATTERY (ADD) ===================== */
-    // Hinweis: iOS Safari unterstützt navigator.getBattery() nicht.
+    /* ===== Battery: minimal hinzugefügt ===== */
     let batterySupported = typeof navigator !== 'undefined' && 'getBattery' in navigator;
     let batteryLevel = null;   // 0..1
     let batteryCharging = null;
   
-    function batteryPercent() {
-      return batteryLevel == null ? null : Math.round(batteryLevel * 100);
-    }
-    function batteryClass() {
-      if (batteryLevel == null) return '';
-      return batteryLevel > 0.5 ? 'battery-green' : 'battery-red';
-    }
+    const batteryPercent = () => batteryLevel == null ? null : Math.round(batteryLevel * 100);
+    const batteryClass   = () => (batteryLevel == null ? '' : (batteryLevel > 0.5 ? 'battery-green' : 'battery-red'));
   
     async function initBattery() {
       if (!batterySupported) return;
       try {
         const batt = await navigator.getBattery();
-        const set = () => {
-          batteryLevel = batt.level;
-          batteryCharging = batt.charging;
-        };
+        const set = () => { batteryLevel = batt.level; batteryCharging = batt.charging; };
         set();
         batt.addEventListener('levelchange', set);
         batt.addEventListener('chargingchange', set);
@@ -162,18 +153,18 @@
         batterySupported = false;
       }
     }
-    /* ========================================================= */
+    /* ======================================= */
   
     onMount(() => {
       if (hasGeo) startWatching();
-      // Battery init (ADD)
-      let cleanupBattery;
-      initBattery()?.then((c) => { cleanupBattery = c; });
   
-      return () => { 
-        stopWatching(); 
+      // Battery init + Cleanup
+      let cleanupBattery;
+      initBattery()?.then(c => { cleanupBattery = c; });
+  
+      return () => {
+        stopWatching();
         disableCompass();
-        // Battery cleanup (ADD)
         if (cleanupBattery) cleanupBattery();
       };
     });
@@ -201,13 +192,13 @@
     }
   
     .circle {
-      position: relative; 
+      position: relative;
       width: min(60vmin, 420px);
       height: min(60vmin, 420px);
       border-radius: 9999px;
       transition: background-color 200ms ease, box-shadow 200ms ease, transform 120ms ease;
       box-shadow: 0 20px 60px rgba(0,0,0,0.08), inset 0 0 0 8px rgba(0,0,0,0.04);
-      overflow: hidden; 
+      overflow: hidden;
     }
     .circle.red { background: #e53935; }
     .circle.green { background: #43a047; }
@@ -248,7 +239,7 @@
       margin-top: 1rem;
       display: flex;
       gap: .5rem;
-      flex-wrap: wrap; 
+      flex-wrap: wrap;
     }
   
     button {
@@ -264,21 +255,10 @@
     .hint { font-size: .9rem; color: #666; margin-top: .5rem; }
     .err { color: #b00020; margin-top: .5rem; }
   
-    /* ===== Battery Badge Styles (ADD) ===== */
-    .battery-pill {
-      padding: .15rem .5rem;
-      border-radius: 9999px;
-      background: #f5f5f5;
-      font-weight: 600;
-    }
-    .battery-green {
-      background: #e8f5e9;
-      color: #1b5e20;
-    }
-    .battery-red {
-      background: #fdecea;
-      color: #b71c1c;
-    }
+    /* Battery-Badge */
+    .battery-pill { padding:.15rem .5rem; border-radius:9999px; background:#f5f5f5; font-weight:600; }
+    .battery-green { background:#e8f5e9; color:#1b5e20; }
+    .battery-red { background:#fdecea; color:#b71c1c; }
   </style>
   
   <div class="wrap">
@@ -339,7 +319,7 @@
           </div>
         </div>
   
-        <!-- BATTERIE (ADD) -->
+        <!-- Batterie -->
         <div class="row">
           <div class="label">Batterie</div>
           <div class="value">
@@ -361,9 +341,7 @@
       </div>
   
       <div class="hint">
-        Erlaube Standort & Bewegung/Orientierung (iOS: „Bewegung & Ausrichtung“). Richte das Handy waagerecht aus.
-        Der Pfeil zeigt an, in welche Richtung du dich drehen musst, um zum Ziel zu blicken. 
-        Hinweis: iOS Safari zeigt den Batteriestand normalerweise nicht über <code>navigator.getBattery()</code>.
+        iPhone/Safari zeigt den Batteriestand im Browser meist nicht (API blockiert). In einer App/WebView (Capacitor/Cordova) bekommst du echte Prozentwerte.
       </div>
       {#if !hasGeo}
         <div class="err">Geolocation wird von diesem Gerät/Browser nicht unterstützt.</div>
